@@ -35,21 +35,17 @@
         header h1 { font-size: 1.375rem; font-weight: 600; letter-spacing: -0.02em; }
         header p { color: var(--muted); font-size: 0.8125rem; margin-top: 0.125rem; }
 
-        /* === MAIN 3-COLUMN LAYOUT === */
         .app-layout {
             display: grid;
-            grid-template-columns: 260px 1fr 280px;
+            grid-template-columns: 290px 1fr 320px;
             grid-template-rows: auto;
             gap: 1.25rem;
             align-items: start;
         }
 
-        /* Left: inputs */
-        .col-left { grid-column: 1; }
-        /* Center: 3D landscape */
+        .col-left   { grid-column: 1; }
         .col-center { grid-column: 2; }
-        /* Right: outputs + matrix */
-        .col-right { grid-column: 3; display: flex; flex-direction: column; gap: 1.25rem; }
+        .col-right  { grid-column: 3; display: flex; flex-direction: column; gap: 1.25rem; }
 
         .panel {
             background: var(--surface);
@@ -142,6 +138,20 @@
         .readout-bar { height: 100%; border-radius: 3px; transition: width 0.4s ease, background 0.4s ease; }
         .readout-value { font-size: 0.8125rem; font-weight: 600; min-width: 22px; text-align: right; }
 
+        .service-category-label {
+            font-size: 0.5625rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #c0c0c0;
+            margin-bottom: 0.5rem;
+            margin-top: 0.125rem;
+        }
+
+        .service-category-label:not(:first-child) {
+            margin-top: 0.75rem;
+        }
+
         .config-indicator { font-size: 0.75rem; color: var(--muted); }
         .config-indicator strong { color: var(--text); }
 
@@ -174,10 +184,7 @@
         .metric-card-sub { font-size: 0.625rem; color: #bbb; margin-top: 0.0625rem; }
 
         /* === 3D LANDSCAPE === */
-        .landscape-panel {
-            display: flex;
-            flex-direction: column;
-        }
+        .landscape-panel { display: flex; flex-direction: column; }
 
         .sigma-row {
             display: flex;
@@ -186,14 +193,13 @@
             margin-bottom: 0.75rem;
         }
 
-        .sigma-label {
-            font-size: 0.6875rem;
-            color: var(--muted);
-            white-space: nowrap;
-        }
+        .sigma-label { font-size: 0.6875rem; color: var(--muted); white-space: nowrap; }
+        .sigma-label strong { color: var(--text); }
 
-        .sigma-label strong {
-            color: var(--text);
+        .sigma-bounds {
+            font-size: 0.625rem;
+            color: #bbb;
+            font-variant-numeric: tabular-nums;
         }
 
         input[type="range"].sigma-slider {
@@ -228,8 +234,7 @@
         .canvas-wrap {
             position: relative;
             width: 100%;
-            /* tall canvas */
-            aspect-ratio: 1;
+            aspect-ratio: 1.05;
         }
 
         #landscape3d {
@@ -276,9 +281,7 @@
         }
 
         @media (max-width: 1100px) {
-            .app-layout {
-                grid-template-columns: 1fr;
-            }
+            .app-layout { grid-template-columns: 1fr; }
             .col-left, .col-center, .col-right { grid-column: 1; }
         }
     </style>
@@ -378,8 +381,10 @@
 
                 <div class="sigma-row">
                     <span class="sigma-label">Bandwidth <strong>σ</strong></span>
+                    <span class="sigma-bounds">0.15</span>
                     <input type="range" class="sigma-slider" id="sigmaSlider"
-                           min="0" max="1" step="0.01" value="0.55">
+                           min="0.15" max="1.0" step="0.01" value="0.55">
+                    <span class="sigma-bounds">1.00</span>
                     <span class="sigma-val" id="sigmaDisplay">0.55</span>
                 </div>
 
@@ -390,12 +395,11 @@
             </div>
         </div>
 
-        <!-- ============ RIGHT: OUTPUTS + MATRIX ============ -->
+        <!-- ============ RIGHT: STATUS + MATRIX ============ -->
         <div class="col-right">
 
-            <!-- System output panel -->
             <div class="panel">
-                <div class="panel-title">System Output</div>
+                <div class="panel-title">System Status</div>
 
                 <!-- Current state -->
                 <div class="output-section">
@@ -481,12 +485,7 @@ function precariousness(t,q) {
 //  STATE
 // =========================================================================
 let current = { pnp:'bot', aoi:'bot', oven:'bot' };
-
-// Sigma: slider 0-1 maps to actual sigma 0.15 – 3.5
-const SIGMA_MIN = 0.15, SIGMA_MAX = 3.5;
-let sigmaActual = 1.2;
-
-function sliderToSigma(v) { return SIGMA_MIN + v * (SIGMA_MAX - SIGMA_MIN); }
+let sigma = 0.55;
 
 function currentServices() {
     const e1=elService.pnp[current.pnp], e2=elService.aoi[current.aoi], e3=elService.oven[current.oven];
@@ -511,36 +510,43 @@ const sigmaSlider  = document.getElementById('sigmaSlider');
 const sigmaDisplay = document.getElementById('sigmaDisplay');
 
 sigmaSlider.addEventListener('input', () => {
-    sigmaActual = sliderToSigma(parseFloat(sigmaSlider.value));
-    sigmaDisplay.textContent = sigmaActual.toFixed(2);
+    sigma = parseFloat(sigmaSlider.value);
+    sigmaDisplay.textContent = sigma.toFixed(2);
     render3D();
 });
-
-// init display
-sigmaActual = sliderToSigma(parseFloat(sigmaSlider.value));
-sigmaDisplay.textContent = sigmaActual.toFixed(2);
 
 // =========================================================================
 //  READOUTS
 // =========================================================================
 function renderReadouts() {
     const s = currentServices();
-    const items = [
+
+    const elementary = [
         { name:'Placement Capability',   val:s.el[0], color:'#6366f1' },
         { name:'Inspection Capability',   val:s.el[1], color:'#f59e0b' },
-        { name:'Thermal Process Control', val:s.el[2], color:'#ef4444' },
-        { name:'Production Throughput',   val:s.tp,    color:'#0d9488' },
-        { name:'First-Pass Yield Quality',val:s.qy,    color:'#8b5cf6' }
+        { name:'Thermal Process Control', val:s.el[2], color:'#ef4444' }
     ];
-    document.getElementById('serviceReadouts').innerHTML = items.map((l,i) =>
-        `<div class="service-readout">
-            <div class="readout-label">${l.name}</div>
+
+    const compound = [
+        { name:'Production Throughput',   val:s.tp, color:'#0d9488' },
+        { name:'First-Pass Yield Quality',val:s.qy, color:'#8b5cf6' }
+    ];
+
+    function renderBar(item) {
+        return `<div class="service-readout">
+            <div class="readout-label">${item.name}</div>
             <div class="readout-bar-container">
-                <div class="readout-bar-bg"><div class="readout-bar" style="width:${l.val*10}%;background:${l.color}"></div></div>
-                <div class="readout-value">${l.val}</div>
+                <div class="readout-bar-bg"><div class="readout-bar" style="width:${item.val*10}%;background:${item.color}"></div></div>
+                <div class="readout-value">${item.val}</div>
             </div>
-        </div>${i===2?'<div style="height:6px"></div>':''}`
-    ).join('');
+        </div>`;
+    }
+
+    document.getElementById('serviceReadouts').innerHTML =
+        `<div class="service-category-label">Elementary Services</div>` +
+        elementary.map(renderBar).join('') +
+        `<div class="service-category-label">Compound Services</div>` +
+        compound.map(renderBar).join('');
 }
 
 function renderStateInfo() {
@@ -656,7 +662,6 @@ window.addEventListener('touchmove', e => {
 }, {passive:true});
 window.addEventListener('touchend', () => { dragging=false; });
 
-// Scroll-to-zoom
 canvas.addEventListener('wheel', e => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.06 : 0.06;
@@ -673,7 +678,7 @@ function project(x,y,z) {
 
 function surfaceHeight(gx, gy) {
     let h = 0;
-    const twoSS = 2 * sigmaActual * sigmaActual;
+    const twoSS = 2 * sigma * sigma;
     for (const c of configs) {
         const dx = gx - c.tp, dy = gy - c.qy;
         h += Math.exp(-(dx*dx + dy*dy) / twoSS);
